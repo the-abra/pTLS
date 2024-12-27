@@ -1,0 +1,19 @@
+[workspace]
+members = [
+    # test and example code
+    "examples",
+    "ptls"
+]
+default-members = [
+    "examples",
+    "ptls"
+]
+resolver = "2"
+
+
+[workspace.dependencies]
+tokio = { version = "1", features = ["io-util", "net", "sync", "time", "macros"] }
+serde = { version = "1", features = ["derive"] }
+rsa = "0.9"
+rand = "0.8"
+paste = "1"
