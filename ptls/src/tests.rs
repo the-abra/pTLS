@@ -3,7 +3,7 @@ use payload::max_payload_size;
 use tokio::io::simplex;
 
 #[tokio::test]
-async fn mtls() {
+async fn mtls_max_buffer() {
     use rand::thread_rng;
 
     let mut rng = thread_rng();

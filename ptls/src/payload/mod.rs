@@ -6,11 +6,30 @@ use rand::thread_rng;
 use rsa::{traits::PublicKeyParts, Pkcs1v15Encrypt, RsaPrivateKey, RsaPublicKey};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+pub enum PtlsPayloadType {
+    PublicKey = 0,
+    EncryptedTraffic = 1,
+}
+
+impl TryFrom<u8> for PtlsPayloadType {
+    type Error = Error;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::PublicKey),
+            1 => Ok(Self::EncryptedTraffic),
+            _ => Err(Self::Error::InvalidContentType)
+        }
+    }
+}
+
 /// The pTLS payload transmitted over TCP or UDP. Maximum 16MiB - 15B of data
 /// could transmitted in single payload. A single payload can transmit up to
 /// 16 MiB of data.
 pub struct PtlsPayload {
-    /// Reserved for future se.
+    /// Content type of the payload.
+    pub content_type: PtlsPayloadType,
+    /// Reserved for future use.
     pub version: u16,
     /// Length of the payload
     pub length: u16,
@@ -26,8 +45,9 @@ pub fn max_payload_size(block_size: u16) -> u16 {
 }
 
 impl PtlsPayload {
-    pub fn new(payload: Vec<u8>) -> Self {
+    pub fn new(payload: Vec<u8>, content_type: PtlsPayloadType) -> Self {
         Self {
+            content_type,
             version: 0,
             length: payload.len() as u16,
             payload,
@@ -39,6 +59,7 @@ impl PtlsPayload {
         br: &mut R,
         private_key: &RsaPrivateKey,
     ) -> Result<Self, Error> {
+        let content_type = br.read_u8().await?;
         let _version = br.read_u16().await?;
         let length = br.read_u16().await?;
 
@@ -60,7 +81,7 @@ impl PtlsPayload {
             payload.append(&mut private_key.decrypt(Pkcs1v15Encrypt, &encrypted)?);
         }
 
-        Ok(PtlsPayload::new(payload))
+        Ok(PtlsPayload::new(payload, content_type.try_into()?))
     }
 
     /// Writes the payload into the buffer.
@@ -73,6 +94,7 @@ impl PtlsPayload {
             return Err(Error::PayloadTooLong);
         }
 
+        bw.write_u8(self.content_type as u8).await?;
         bw.write_u16(self.version).await?;
         bw.write_u16(self.length).await?;
 

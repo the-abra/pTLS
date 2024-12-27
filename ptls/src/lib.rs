@@ -40,7 +40,7 @@ pub mod payload;
 mod tests;
 
 pub use error::Error;
-use payload::PtlsPayload;
+use payload::{PtlsPayload, PtlsPayloadType};
 
 use rsa::{
     pkcs1::{DecodeRsaPublicKey, EncodeRsaPublicKey},
@@ -122,34 +122,46 @@ where
 
     /// Retrieves the `public_key` from the peer.  
     pub async fn handshake(&mut self) -> Result<(), Error> {
+        let payload;
+
         match self.timeout {
             Some(duration) => {
                 tokio::select! {
-                    cert = self.receive() => {
-                        self.handshake_inner(cert).await
+                    received_cert = self.receive_inner() => {
+                        payload = received_cert;
                     },
                     _ = tokio::time::sleep(duration) => {
                         self.set_state(PtlsState::TransmitError);
-                        Err(Error::Timeout)
+                        return Err(Error::Timeout);
                     }
                 }
             }
-            None => self.handshake_inner(self.receive().await).await,
-        }
-    }
-
-    async fn handshake_inner(&mut self, cert: Result<Vec<u8>, Error>) -> Result<(), Error> {
-        match cert {
-            Ok(cert) => match RsaPublicKey::from_pkcs1_der(&cert) {
-                Ok(cert) => {
-                    self.set_public_key(cert);
-                    Ok(())
-                }
-                Err(e) => {
-                    self.set_state(PtlsState::TransmitError);
-                    Err(Error::Pkcs1(e))
-                }
+            None => {
+                payload = self.receive_inner().await;
             },
+        };
+
+        match payload {
+            Ok(payload) => {
+                match payload.content_type {
+                    PtlsPayloadType::PublicKey => {
+                        match RsaPublicKey::from_pkcs1_der(&payload.payload) {
+                            Ok(cert) => {
+                                self.set_public_key(cert);
+                                Ok(())
+                            }
+                            Err(e) => {
+                                self.set_state(PtlsState::TransmitError);
+                                Err(Error::Pkcs1(e))
+                            }
+                        }
+                    }
+                    _ => {
+                        self.set_state(PtlsState::TransmitError);
+                        Err(Error::Payload(payload::Error::InvalidContentType))
+                    }
+                }
+            }
             Err(e) => {
                 self.set_state(PtlsState::TransmitError);
                 Err(e)
@@ -162,7 +174,7 @@ where
         match RsaPublicKey::from(&self.private_key).to_pkcs1_der() {
             Ok(cert) => {
                 let cert = cert.as_bytes();
-                self.send(cert).await.unwrap();
+                self.send_inner(cert, PtlsPayloadType::PublicKey).await.unwrap();
                 Ok(())
             }
             Err(e) => {
@@ -174,11 +186,15 @@ where
 
     /// Encrypts the data and transmits it to the peer.
     pub async fn send(&self, data: &[u8]) -> Result<(), Error> {
+        self.send_inner(data, PtlsPayloadType::EncryptedTraffic).await
+    }
+
+    async fn send_inner(&self, data: &[u8], content_type: PtlsPayloadType) -> Result<(), Error> {
         match self.get_state() {
             PtlsState::Authenticated => {
                 let sent: Result<(), Error> = async {
                     let stream = &mut *(self.write.lock().await);
-                    PtlsPayload::new(data.to_owned())
+                    PtlsPayload::new(data.to_owned(), content_type)
                         .write(stream, self.public_key.as_ref().unwrap())
                         .await?;
                     Ok(())
@@ -200,13 +216,24 @@ where
 
     /// Receives and decrypts data from the peer.
     pub async fn receive(&self) -> Result<Vec<u8>, Error> {
+        let received = self.receive_inner().await?;
+        match received.content_type {
+            PtlsPayloadType::EncryptedTraffic => Ok(received.payload),
+            _ => {
+                self.set_state(PtlsState::TransmitError);
+                Err(Error::Payload(payload::Error::InvalidContentType))
+            }
+        }
+    }
+
+    async fn receive_inner(&self) -> Result<PtlsPayload, Error> {
         match self.get_state() {
             PtlsState::TransmitError => Err(Error::SocketDied),
             _ => {
                 let received = async {
                     let stream = &mut *(self.read.lock().await);
                     let payload = PtlsPayload::collect_once(stream, &self.private_key).await?;
-                    Ok(payload.payload)
+                    Ok(payload)
                 }
                 .await;
 

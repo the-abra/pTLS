@@ -7,6 +7,7 @@ use tokio::io::Error as IoError;
 pub enum Error {
     UnsupportedVersion(u16),
     PayloadTooLong,
+    InvalidContentType,
     Io(IoError),
     Rsa(RsaError),
 }
@@ -20,6 +21,7 @@ impl Display for Error {
             }
             Self::Io(error) => error.fmt(f),
             Self::Rsa(error) => error.fmt(f),
+            Self::InvalidContentType => f.write_str("Content type not recognized."),
         }
     }
 }
