@@ -21,11 +21,13 @@ pub use alert::Alert;
 pub use application_data::ApplicationData;
 pub use handshake::Handshake;
 
+/// All content types except for `ClientHello` is encrypted.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ContentType {
-    Handshake = 0,
-    ApplicationData = 1,
-    Alert = 2,
+    ClientHello = 0,
+    Handshake = 1,
+    ApplicationData = 2,
+    Alert = 3,
 }
 
 impl TryFrom<u8> for ContentType {
@@ -33,9 +35,10 @@ impl TryFrom<u8> for ContentType {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
-            0 => Ok(Self::Handshake),
-            1 => Ok(Self::ApplicationData),
-            2 => Ok(Self::Alert),
+            0 => Ok(Self::ClientHello),
+            1 => Ok(Self::Handshake),
+            2 => Ok(Self::ApplicationData),
+            3 => Ok(Self::Alert),
             _ => Err(()),
         }
     }

@@ -7,6 +7,9 @@ pub const PTLS_VERSION: u16 = 0;
 /// pTLS tunnel that wraps a connection.
 pub mod tunnel;
 
+/// Simple IO wrapper.
+pub mod io_wrapper;
+
 /// Sub-protocol messages and error types.
 pub mod sub_protocol;
 

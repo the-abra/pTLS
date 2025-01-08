@@ -1,20 +1,24 @@
-use super::{Tunnel, TunnelError};
+use super::{IoWrapper, IoWrapperError};
 use crate::{payload::MAX_PAYLOAD_LENGTH, sub_protocol::ContentType, PTLS_VERSION};
 use tokio::io::AsyncWriteExt;
 
-impl<R, W> Tunnel<R, W>
+impl<R, W> IoWrapper<R, W>
 where
     W: AsyncWriteExt + Unpin,
 {
-    /// Writes a pTLS payload to `write` buffer.
-    pub async fn send(&self, content_type: ContentType, payload: &[u8]) -> Result<(), TunnelError> {
+    /// Writes a raw pTLS payload to `write` buffer.
+    pub async fn send(
+        &self,
+        content_type: ContentType,
+        payload: &[u8],
+    ) -> Result<(), IoWrapperError> {
         let length = match payload.len() {
             // This code errors should be unreachable in proper implementations
-            // of `Tunnel`.
+            // of `IoWrapper`.
             length if length > MAX_PAYLOAD_LENGTH as usize => {
-                return Err(TunnelError::MessageTooLong(length))
+                return Err(IoWrapperError::MessageTooLong(length))
             }
-            0 => return Err(TunnelError::NoPayload),
+            0 => return Err(IoWrapperError::NoPayload),
             length => length as u16,
         };
 
@@ -26,8 +30,6 @@ where
 
         write.write_all(payload).await?;
 
-        // TODO: encrypt
-
         Ok(())
     }
 }
@@ -38,13 +40,13 @@ mod err_tests {
     use std::sync::Arc;
 
     // Creates a mock tunnel and sends the specified `payload` to it.
-    async fn test_payload(content_type: ContentType, payload: &[u8]) -> Result<(), TunnelError> {
+    async fn test_payload(content_type: ContentType, payload: &[u8]) -> Result<(), IoWrapperError> {
         let (r, mut w) = tokio::io::simplex(u16::MAX as usize);
 
         w.write_all(payload).await.unwrap();
         w.flush().await.unwrap();
 
-        let tunnel = Arc::new(Tunnel::new((r, w), random_private_key!()));
+        let tunnel = Arc::new(IoWrapper::new((r, w)));
 
         tunnel.send(content_type, payload).await
     }
@@ -53,7 +55,7 @@ mod err_tests {
     async fn no_payload() {
         assert!(matches!(
             test_payload(ContentType::Handshake, &[]).await,
-            Err(TunnelError::NoPayload),
+            Err(IoWrapperError::NoPayload),
         ));
     }
 
@@ -61,7 +63,7 @@ mod err_tests {
     async fn message_too_long() {
         assert!(matches!(
             test_payload(ContentType::Handshake, &vec![0; u16::MAX as usize]).await,
-            Err(TunnelError::MessageTooLong(_)),
+            Err(IoWrapperError::MessageTooLong(_)),
         ));
     }
 }
