@@ -21,7 +21,7 @@ pub use alert::Alert;
 pub use application_data::ApplicationData;
 pub use handshake::Handshake;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ContentType {
     Handshake = 0,
     ApplicationData = 1,
@@ -42,38 +42,37 @@ impl TryFrom<u8> for ContentType {
 }
 
 #[cfg(test)]
-mod test {
-    #[test]
-    fn alert_equality() {
-        use super::{alert::HandshakeError, Alert::*, *};
+#[test]
+fn alert_equality() {
+    use alert::HandshakeError;
+    use Alert::*;
 
-        assert_eq!(InvalidRandom, InvalidRandom);
-        assert_eq!(
-            InappropriateMessage {
-                expected_types: vec![ContentType::Handshake],
-                got: ContentType::ApplicationData
-            },
-            InappropriateMessage {
-                expected_types: vec![ContentType::Handshake],
-                got: ContentType::ApplicationData
-            },
-        );
-        assert_eq!(
-            HandshakeError(HandshakeError::InvalidRandom),
-            HandshakeError(HandshakeError::InvalidRandom)
-        );
-        assert_eq!(
-            HandshakeError(HandshakeError::InappropriateMessage {
-                expected_types: vec![3],
-                got: 0
-            }),
-            HandshakeError(HandshakeError::InappropriateMessage {
-                expected_types: vec![u8::from(&Handshake::Finished {
-                    random: 0,
-                    random_signature: vec![]
-                })],
-                got: u8::from(&Handshake::ClientHello { public_key: vec![] })
-            }),
-        );
-    }
+    assert_eq!(InvalidRandom, InvalidRandom);
+    assert_eq!(
+        InappropriateMessage {
+            expected_types: vec![ContentType::Handshake],
+            got: ContentType::ApplicationData
+        },
+        InappropriateMessage {
+            expected_types: vec![ContentType::Handshake],
+            got: ContentType::ApplicationData
+        },
+    );
+    assert_eq!(
+        HandshakeError(HandshakeError::InvalidRandom),
+        HandshakeError(HandshakeError::InvalidRandom)
+    );
+    assert_eq!(
+        HandshakeError(HandshakeError::InappropriateMessage {
+            expected_types: vec![3],
+            got: 0
+        }),
+        HandshakeError(HandshakeError::InappropriateMessage {
+            expected_types: vec![u8::from(&Handshake::Finished {
+                random: 0,
+                random_signature: vec![]
+            })],
+            got: u8::from(&Handshake::ClientHello { public_key: vec![] })
+        }),
+    );
 }

@@ -9,11 +9,11 @@ categories = ["network-programming", "cryptography"]
 exclude = ["tests/**"]
 
 [dependencies]
-# tokio = { workspace = true }
+tokio = { workspace = true }
+rsa = { workspace = true }
+rand = { workspace = true }
+paste = { workspace = true }
 # serde = { workspace = true }
-# rsa = { workspace = true }
-# rand = { workspace = true }
-# paste = { workspace = true }
 
 [dev-dependencies]
-# tokio = { version = "1", features = ["full"] }
+tokio = { workspace = true, features = ["full"] }
