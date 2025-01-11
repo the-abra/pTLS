@@ -4,6 +4,9 @@ mod macros;
 /// pTLS protocol version
 pub const PTLS_VERSION: u16 = 0;
 
+/// Encryption/decryption and signing/signature verifying items.
+pub mod crypto;
+
 /// pTLS tunnel that wraps a connection.
 pub mod tunnel;
 
@@ -18,4 +21,3 @@ pub mod payload;
 
 #[doc(inline)]
 pub use payload::MAX_PAYLOAD_LENGTH;
-pub use tunnel::Tunnel;
