@@ -14,7 +14,7 @@
 //! [`Finished`]: Handshake::Finished
 //! [`EncryptedClientHello`]: Handshake::EncryptedClientHello
 
-use super::ContentType;
+use super::{handshake::HandshakeError, ContentType};
 
 /// Message types are sent in the `alert` sub-protocol.
 #[derive(Debug, PartialEq, Eq)]
@@ -40,24 +40,4 @@ pub enum Alert {
 
     /// Updates the public key of the peer.
     KeyUpdate { public_key: Vec<u8> },
-}
-
-/// Errors may occur during the `handshake` sub-protocol.
-#[derive(Debug, PartialEq, Eq)]
-pub enum HandshakeError {
-    /// The public key provided by peer is not a valid PKCS8 key in DER
-    /// format.
-    InappropriatePublicKey,
-
-    /// The certificate authority is not a known certificate issuer.
-    UnknownCa,
-
-    /// The signature provided by peer is not valid.
-    InvalidSignature,
-
-    /// The random sent by peer is not valid.
-    InvalidRandom,
-
-    /// Received a `handshake`message that is not valid right now.
-    InappropriateMessage { expected_types: Vec<u8>, got: u8 },
 }

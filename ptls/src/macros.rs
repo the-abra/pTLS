@@ -17,10 +17,10 @@ macro_rules! error_impl_from {
 macro_rules! random_private_key {
     () => {{
         use rsa::RsaPrivateKey;
-        Arc::new(RsaPrivateKey::new(&mut rand::thread_rng(), 512).unwrap())
+        RsaPrivateKey::new(&mut rand::thread_rng(), 1024).unwrap()
     }};
     ($bits:expr) => {{
         use rsa::RsaPrivateKey;
-        Arc::new(RsaPrivateKey::new(&mut rand::thread_rng(), $bits).unwrap())
+        RsaPrivateKey::new(&mut rand::thread_rng(), $bits).unwrap()
     }};
 }

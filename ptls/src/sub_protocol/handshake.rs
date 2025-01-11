@@ -65,7 +65,11 @@
 //! [`Finished`]: Handshake::Finished
 //! [`EncryptedClientHello`]: Handshake::EncryptedClientHello
 
+use serde::{Deserialize, Serialize};
+use std::fmt::Display;
+
 /// Messages sent during the `handshake` sub-protocol.
+#[derive(Serialize, Deserialize)]
 pub enum Handshake {
     /// When a client first connects to a server, it is required to send the
     /// `ClientHello` or `EncryptedClientHello` as its first pTLS message.
@@ -108,3 +112,40 @@ impl<'a> From<&'a Handshake> for u8 {
         }
     }
 }
+
+/// Errors may occur during the `handshake` sub-protocol.
+#[derive(Debug, PartialEq, Eq)]
+pub enum HandshakeError {
+    /// The public key provided by peer is not a valid PKCS8 key in DER
+    /// format.
+    InappropriatePublicKey,
+
+    /// The certificate authority is not a known certificate issuer.
+    UnknownCa,
+
+    /// The signature provided by peer is not valid.
+    InvalidSignature,
+
+    /// The random sent by peer is not valid.
+    InvalidRandom,
+
+    /// Received a `handshake`message that is not valid right now.
+    InappropriateMessage { expected_types: Vec<u8>, got: u8 },
+}
+
+impl Display for HandshakeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InappropriateMessage {
+                expected_types,
+                got,
+            } => write!(f, "expected {expected_types:?}, got {got}"),
+            Self::UnknownCa => f.write_str("unknown ca"),
+            Self::InvalidSignature => f.write_str("signature invalid"),
+            Self::InvalidRandom => f.write_str("random invalid"),
+            Self::InappropriatePublicKey => f.write_str("cannot parse public key"),
+        }
+    }
+}
+
+impl std::error::Error for HandshakeError {}

@@ -24,9 +24,36 @@ pub use handshake::Handshake;
 /// All content types except for `ClientHello` is encrypted.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ContentType {
+    /// Represents a [`Handshake::ClientHello`] or
+    /// [`Handshake::EncryptedClientHello`] message. The first byte of the
+    /// message contains flags, with 7 reserved bits and 1 bit indicating  
+    /// whether the message is encrypted (`is_message_encrypted`).
+    ///
+    /// ```text
+    /// first byte:
+    ///     0 is_encrypted
+    ///   1-7 reserved
+    ///
+    /// ..payload
+    /// ```
     ClientHello = 0,
+    /// Represents other [`Handshake`] messages not covered by [`ClientHello`]
+    /// variant of this enum. Always encrypted.
+    ///
+    /// [`ClientHello`]: ContentType::ClientHello
     Handshake = 1,
+    /// Application-specific data that is always encrypted.
     ApplicationData = 2,
+    /// First byte of this variant contains flags.
+    ///
+    /// ```text
+    /// first byte:
+    ///     0 is_encrypted
+    ///     1 is_fatal
+    ///   2-7 reserved
+    ///
+    ///  ..payload
+    /// ```
     Alert = 3,
 }
 
@@ -47,7 +74,7 @@ impl TryFrom<u8> for ContentType {
 #[cfg(test)]
 #[test]
 fn alert_equality() {
-    use alert::HandshakeError;
+    use handshake::HandshakeError;
     use Alert::*;
 
     assert_eq!(InvalidRandom, InvalidRandom);

@@ -43,7 +43,7 @@ mod test {
     use tokio::io::{simplex, AsyncReadExt, AsyncWriteExt};
 
     #[tokio::test]
-    async fn tunnel_into_inner() {
+    async fn io_wrapper_into_inner() {
         let tunnel = IoWrapper::new(simplex(512));
 
         let (mut r, mut w) = tunnel.into_inner();
@@ -56,7 +56,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn tunnel() {
+    async fn io_wrapper() {
         let tunnel = IoWrapper::new(simplex(4096));
 
         let payload = b"abcdefghijklmnopqrstuvwxyz1234567890";
