@@ -13,7 +13,7 @@ pub struct Signing<H>
 where
     H: Digest + FixedOutputReset,
 {
-    signing_key: BlindedSigningKey<H>,
+    pub signing_key: BlindedSigningKey<H>,
 }
 
 /// Signature verification using PSS.
@@ -21,7 +21,7 @@ pub struct Verifying<H>
 where
     H: Digest + FixedOutputReset,
 {
-    verifying_key: VerifyingKey<H>,
+    pub verifying_key: VerifyingKey<H>,
 }
 
 impl<H> Signing<H>

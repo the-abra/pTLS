@@ -13,10 +13,9 @@ macro_rules! hash_enums {
         $hash_functions:tt,
         [$(
             (
-                $struct:ident,
-                $new_arg:ty,
+                $struct:ident, $new_arg:ty, $inner:ident,
                 { $inherit_fn:ident, $inherit_fn_args:tt, $inherit_fn_ret:ty, $inherit_fn_call:tt }
-            ) 
+            )
         ),*]
     ) => {
         hash_enums!(@define_hash_functions $hash_functions);
@@ -26,9 +25,11 @@ macro_rules! hash_enums {
 
             paste::paste! {
                 impl [<$struct Function>] {
-                    hash_enums!(@define_fn $inherit_fn, $inherit_fn_ret, $inherit_fn_call, $inherit_fn_args, $hash_functions);
+                    hash_enums!(@define_fn_inherit $inherit_fn, $inherit_fn_ret, $inherit_fn_call, $inherit_fn_args, $hash_functions);
                 }
             }
+
+            hash_enums!(@define_fn_as_ref $inner, $new_arg, $struct, $hash_functions);
         )*
 
         #[allow(unused)]
@@ -46,7 +47,21 @@ macro_rules! hash_enums {
                 $hash_function = $id
             ),*
         }
+
+        impl TryFrom<u8> for HashFunction {
+            type Error = CryptoError;
+
+            fn try_from(value: u8) -> Result<Self, Self::Error> {
+                match value {
+                    $(
+                        $id => Ok(Self::$hash_function),
+                    )*
+                    _ => Err(Self::Error::InvalidHashFunction)
+                }
+            }
+        }
     };
+
     (
         @define_hash_fields
         [$( ($hash_function:ident, $id:expr) ),*],
@@ -64,7 +79,7 @@ macro_rules! hash_enums {
 
             #[allow(unused)]
             impl [<$struct Function>] {
-                pub fn new(
+                pub fn try_new(
                     hash_function: &HashFunction,
                     [<$new_arg:snake>]: $new_arg,
                 ) -> Result<Self, CryptoError> {
@@ -89,23 +104,56 @@ macro_rules! hash_enums {
         }
     };
     (
-        @define_fn 
+        @define_fn_as_ref
+        None, $new_arg:ty, $struct:ident,
+        $hash_functions: tt
+    ) => {};
+    (
+        @define_fn_as_ref
+        $inner:ident, $new_arg:ty, $struct:ident,
+        $hash_functions: tt
+    ) => {
+        paste::paste! {
+            impl AsRef<$new_arg> for [<$struct Function>] {
+                fn as_ref(&self) -> &$new_arg {
+                    hash_enums!(@define_fn_inner_as_ref
+                        $hash_functions, self,
+                        $inner
+                    )
+                }
+            }
+        }
+    };
+    (
+        @define_fn_inner_as_ref
+        [$( ($hash_function:ident, $id:expr) ),*],
+        $self:ident,
+        $inner:ident
+    ) => {
+        match $self {
+            $(
+                Self::$hash_function(inner) => &inner.$inner
+            ),*
+        }
+    };
+    (
+        @define_fn_inherit
         $inherit_fn:ident, $inherit_fn_ret:ty, $inherit_fn_call: tt,
         ($( $ident:ident: $ty:ty ),*),
         $hash_functions: tt
     ) => {
         pub fn $inherit_fn(&self, $($ident: $ty),*) -> $inherit_fn_ret {
-            hash_enums!(@define_fn_inner 
-                self,
-                $inherit_fn, $inherit_fn_call, $hash_functions
+            hash_enums!(@define_fn_inner_inherit
+                $hash_functions, self,
+                $inherit_fn, $inherit_fn_call
             )
         }
     };
     (
-        @define_fn_inner
+        @define_fn_inner_inherit
+        [$( ($hash_function:ident, $id:expr) ),*],
         $self:ident,
-        $inherit_fn:ident, $inherit_fn_call:tt,
-        [$( ($hash_function:ident, $id:expr) ),*]
+        $inherit_fn:ident, $inherit_fn_call:tt
     ) => {
         match $self {
             $(
@@ -113,12 +161,13 @@ macro_rules! hash_enums {
             ),*
         }
     };
+
     (@define_hash_to $struct:ident, $new_arg:ty) => {
         paste::paste! {
             pub fn [<to_ $struct:lower>](
                 &self, [<$new_arg:snake>]: $new_arg
             ) -> Result<[<$struct Function>], CryptoError> {
-                [<$struct Function>]::new(self, [<$new_arg:snake>])
+                [<$struct Function>]::try_new(self, [<$new_arg:snake>])
             }
         }
     }
@@ -128,7 +177,7 @@ hash_enums!(
     [(Sha224, 0), (Sha256, 1), (Sha384, 2), (Sha512, 3)],
     [
         (
-            Encrypt, RsaPublicKey,
+            Encrypt, RsaPublicKey, public_key,
             {
                 encrypt,
                 (payload: &[u8]), Result<Vec<u8>, CryptoError>,
@@ -136,7 +185,7 @@ hash_enums!(
             }
         ),
         (
-            Decrypt, RsaPrivateKey,
+            Decrypt, RsaPrivateKey, private_key,
             {
                 decrypt_owned,
                 (payload: &mut Vec<u8>),  Result<(), CryptoError>,
@@ -144,7 +193,7 @@ hash_enums!(
             }
         ),
         (
-            Signing, RsaPrivateKey,
+            Signing, RsaPrivateKey, None,
             {
                 sign,
                 (msg: &[u8]), Vec<u8>,
@@ -152,7 +201,7 @@ hash_enums!(
             }
         ),
         (
-            Verifying, RsaPublicKey,
+            Verifying, RsaPublicKey, None,
             {
                 verify,
                 (msg: &[u8], signature: &[u8]), Result<(), CryptoError>,

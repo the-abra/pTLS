@@ -37,7 +37,4 @@ pub enum Alert {
         expected_types: Vec<ContentType>,
         got: ContentType,
     },
-
-    /// Updates the public key of the peer.
-    KeyUpdate { public_key: Vec<u8> },
 }

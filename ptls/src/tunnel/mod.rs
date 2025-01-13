@@ -1,15 +1,16 @@
+#[macro_use]
+mod macros;
+
+mod encrypted_tunnel;
 mod error;
 mod handshake_subprotocol;
 
-/// pTLS hash functions.
-pub mod hash_functions;
-
-use crate::io_wrapper::IoWrapper;
+use crate::{crypto::hash_functions::*, io_wrapper::IoWrapper};
+use rsa::RsaPublicKey;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub use error::Error;
-use hash_functions::*;
 
 /// State of the pTLS tunnel.
 pub enum TunnelState {
@@ -24,10 +25,19 @@ pub enum TunnelState {
     GracefullyDisconnected,
 }
 
+/// Wraps the public key that signed by a trusted authority.
+pub struct SignedPublicKey {
+    pub public_key: RsaPublicKey,
+    pub expries_at: i64,
+    pub trusted_authority_id: u64,
+    pub signature: Vec<u8>,
+}
+
 /// An encrypted tunnel that implements pTLS methods and manages connection states.
 #[allow(unused)]
 pub struct Tunnel<R, W> {
     io_wrapper: IoWrapper<R, W>,
+    signed_public: Option<Arc<SignedPublicKey>>,
     local_decrypt: Arc<DecryptFunction>,
     local_signing: Arc<SigningFunction>,
     peer_encrypt: Option<EncryptFunction>,
@@ -48,11 +58,25 @@ where
     ) -> Self {
         Self {
             io_wrapper: IoWrapper::new((r, w)),
+            signed_public: None,
             local_decrypt,
             local_signing,
             peer_encrypt: None,
             peer_verifying: None,
             state: TunnelState::Handshake,
         }
+    }
+
+    /// Crates [`EncryptFunction`] and [`VerifyingFunction`] for peer with the
+    /// provided public key.
+    pub fn set_peer_public_key(
+        &mut self,
+        public_key: RsaPublicKey,
+        padding_hf: &HashFunction,
+        signature_hf: &HashFunction,
+    ) -> Result<(), Error> {
+        self.peer_encrypt = Some(EncryptFunction::try_new(signature_hf, public_key.clone())?);
+        self.peer_verifying = Some(VerifyingFunction::try_new(padding_hf, public_key)?);
+        Ok(())
     }
 }

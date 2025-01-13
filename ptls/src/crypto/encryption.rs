@@ -9,7 +9,7 @@ use std::marker::PhantomData;
 
 /// Encryption using OAEP padding.
 pub struct Encrypt<H> {
-    public_key: RsaPublicKey,
+    pub public_key: RsaPublicKey,
     block_size: usize,
     available_block_size: usize,
     hash_function: PhantomData<H>,
@@ -17,7 +17,7 @@ pub struct Encrypt<H> {
 
 /// Decryption using OAEP padding.
 pub struct Decrypt<H> {
-    private_key: RsaPrivateKey,
+    pub private_key: RsaPrivateKey,
     block_size: usize,
     available_block_size: usize,
     hash_function: PhantomData<H>,

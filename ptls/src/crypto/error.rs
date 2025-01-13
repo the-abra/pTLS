@@ -7,6 +7,7 @@ pub enum CryptoError {
     HashFunctionOutputTooLarge,
     Rsa(RsaError),
     Signature(SignatureError),
+    InvalidHashFunction,
 }
 
 impl Display for CryptoError {
@@ -17,6 +18,7 @@ impl Display for CryptoError {
             ),
             Self::Rsa(rsa_error) => rsa_error.fmt(f),
             Self::Signature(signature_error) => signature_error.fmt(f),
+            Self::InvalidHashFunction => f.write_str("unknown hash function was provided"),
         }
     }
 }

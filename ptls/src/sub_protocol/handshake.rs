@@ -5,14 +5,14 @@
 //!
 //! Key  ^ ClientHello
 //! Exch |    public_key
-//!      |    signature_scheme
-//!      v    padding_scheme       ------->
+//!      |    signature_hf
+//!      v    padding_hf           ------->
 //!
 //!                                                 [ServerHello]  ^ Key
 //!                                                  public_key    | Exch
 //!                                                  expries_at    |
-//!                                            signature_scheme    |
-//!                                              padding_scheme    |
+//!                                                signature_hf    |
+//!                                                  padding_hf    |
 //!                                       thrusted_authority_id    |
 //!                                <-------           signature    v
 //!
@@ -50,8 +50,8 @@
 //!
 //! Key  ^ {EncryptedClientHello}
 //! Exch |    public_key
-//!      |    signature_scheme
-//!      v    padding_scheme
+//!      |    signature_hf
+//!      v    padding_hf
 //! Auth ^    random
 //!      v    random_signature     ------->
 //!
@@ -80,8 +80,10 @@ use std::fmt::Display;
 #[derive(Serialize, Deserialize)]
 pub struct ClientHello {
     pub public_key: Vec<u8>,
-    pub signature_scheme: u8,
-    pub padding_scheme: u8,
+    /// Signature hash function.
+    pub signature_hf: u8,
+    /// Padding hash function.
+    pub padding_hf: u8,
 }
 
 /// This is an encrypted version of the `ClientHello`. Combines the
@@ -89,9 +91,9 @@ pub struct ClientHello {
 #[derive(Serialize, Deserialize)]
 pub struct EncryptedClientHello {
     pub public_key: Vec<u8>,
-    pub signature_scheme: u8,
-    pub padding_scheme: u8,
-    pub random: u64,
+    pub signature_hf: u8,
+    pub padding_hf: u8,
+    pub random: Vec<u8>,
     pub random_signature: Vec<u8>,
 }
 
@@ -101,9 +103,9 @@ pub struct EncryptedClientHello {
 pub struct ServerHello {
     pub public_key: Vec<u8>,
     /// Unix timestamp that indicates public_key's expriation time.
-    pub expries_at: u8,
-    pub signature_scheme: u8,
-    pub padding_scheme: u8,
+    pub expries_at: i64,
+    pub signature_hf: u8,
+    pub padding_hf: u8,
     pub trusted_authority_id: u64,
     /// The signature provided by trusted authority for verifying the
     /// public_key and its expriation timestamp.
@@ -117,7 +119,7 @@ pub struct ServerHello {
 pub struct Finished {
     /// A random 64-bit integer used to prevent message forgery. The client
     /// must include this value with `ApplicationData`.
-    pub random: u64,
+    pub random: Vec<u8>,
     /// The random should signed by public key of the peer.
     pub random_signature: Vec<u8>,
 }
@@ -164,6 +166,7 @@ pub trait HandshakePayload {
 macro_rules! impl_handshake_payload {
     ($( ($struct:ident, $content_type:expr ) ),*) => {
         /// Numeric content type ids of the handshake messages.
+        #[derive(Eq, PartialEq)]
         pub enum HandshakeContentType {
             $(
                 $struct = $content_type
