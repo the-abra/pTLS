@@ -59,10 +59,10 @@ mod test {
     async fn io_wrapper() {
         let tunnel = IoWrapper::new(simplex(4096));
 
-        let payload = b"abcdefghijklmnopqrstuvwxyz1234567890";
+        let payload = b"abcdefghijklmnopqrstuvwxyz1234567890987654321".repeat(64);
 
         tunnel
-            .send(ContentType::ApplicationData, payload)
+            .send(ContentType::ApplicationData, &payload)
             .await
             .unwrap();
         let (received_content_type, received_payload) = tunnel.receive().await.unwrap();

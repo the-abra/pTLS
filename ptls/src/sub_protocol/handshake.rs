@@ -77,7 +77,7 @@ use std::fmt::Display;
 
 /// When a client first connects to a server, it is required to send the
 /// `ClientHello` or `EncryptedClientHello` as its first pTLS message.
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ClientHello {
     pub public_key: Vec<u8>,
     /// Signature hash function.
@@ -88,7 +88,7 @@ pub struct ClientHello {
 
 /// This is an encrypted version of the `ClientHello`. Combines the
 /// properties of `Finished` and `ClientHello`.
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct EncryptedClientHello {
     pub public_key: Vec<u8>,
     pub signature_hf: u8,
@@ -99,7 +99,7 @@ pub struct EncryptedClientHello {
 
 /// The server will send this message in response to a ClientHello message
 /// to proceed with the handshake.
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ServerHello {
     pub public_key: Vec<u8>,
     /// Unix timestamp that indicates public_key's expriation time.
@@ -115,7 +115,7 @@ pub struct ServerHello {
 /// The `Finished` message concludes the `Handshake` phase. After sending a
 /// `Finished` message, the peer or the server can start sending
 /// `ApplicationData`.
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Finished {
     /// A random 64-bit integer used to prevent message forgery. The client
     /// must include this value with `ApplicationData`.
@@ -166,7 +166,7 @@ pub trait HandshakePayload {
 macro_rules! impl_handshake_payload {
     ($( ($struct:ident, $content_type:expr ) ),*) => {
         /// Numeric content type ids of the handshake messages.
-        #[derive(Eq, PartialEq)]
+        #[derive(Debug, Eq, PartialEq)]
         pub enum HandshakeContentType {
             $(
                 $struct = $content_type

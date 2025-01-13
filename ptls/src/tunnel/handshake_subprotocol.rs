@@ -2,11 +2,14 @@ use super::{EncryptFunction, Error, HashFunction, Tunnel, VerifyingFunction};
 use crate::{
     io_wrapper::IoWrapperError,
     sub_protocol::{
-        handshake::{self, HandshakeContentType, HandshakeError, ServerHello},
+        handshake::{self, ClientHello, HandshakeContentType, HandshakeError, ServerHello},
         ContentType,
     },
 };
-use rsa::{pkcs1::EncodeRsaPublicKey, pkcs8::DecodePublicKey, RsaPublicKey};
+use rsa::{
+    pkcs8::{DecodePublicKey, EncodePublicKey},
+    RsaPublicKey,
+};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 impl<R, W> Tunnel<R, W>
@@ -38,20 +41,20 @@ where
             match handshake_content_type {
                 HandshakeContentType::EncryptedClientHello if !client_hello => {
                     let ech: handshake::EncryptedClientHello =
-                        bincode::deserialize(&payload).map_err(|_| Error::InvalidPayload)?;
+                        bincode::deserialize(&payload[1..]).map_err(|_| Error::InvalidPayload)?;
 
                     credentials = Some((ech.public_key, ech.signature_hf, ech.padding_hf));
                     random = Some((ech.random, ech.random_signature));
                 }
                 HandshakeContentType::ClientHello if !client_hello => {
                     let ch: handshake::ClientHello =
-                        bincode::deserialize(&payload).map_err(|_| Error::InvalidPayload)?;
+                        bincode::deserialize(&payload[1..]).map_err(|_| Error::InvalidPayload)?;
 
                     credentials = Some((ch.public_key, ch.signature_hf, ch.padding_hf));
                 }
                 HandshakeContentType::Finished if client_hello => {
                     let finished: handshake::Finished =
-                        bincode::deserialize(&payload).map_err(|_| Error::InvalidPayload)?;
+                        bincode::deserialize(&payload[1..]).map_err(|_| Error::InvalidPayload)?;
 
                     random = Some((finished.random, finished.random_signature));
                 }
@@ -72,7 +75,7 @@ where
                     let server_hello = ServerHello {
                         public_key: signed_public
                             .public_key
-                            .to_pkcs1_der()
+                            .to_public_key_der()
                             .map_err(|_| Error::UnexceptedError)?
                             .to_vec(),
                         expries_at: signed_public.expries_at,
@@ -84,17 +87,11 @@ where
 
                     let mut payload = vec![HandshakeContentType::ServerHello as u8];
                     payload.append(
-                        &mut self
-                            .peer_encrypt
-                            .as_ref()
-                            .ok_or(Error::Handshake(HandshakeError::InvalidContentType))?
-                            .encrypt(
-                                &bincode::serialize(&server_hello)
-                                    .map_err(|_| Error::UnexceptedError)?,
-                            )?,
+                        &mut bincode::serialize(&server_hello)
+                        .map_err(|_| Error::UnexceptedError)?
                     );
 
-                    self.send(ContentType::Handshake, &payload).await?;
+                    self.send_internal(ContentType::Handshake, &payload).await?;
                 }
 
                 client_hello = true;
@@ -111,8 +108,52 @@ where
         Ok(())
     }
 
-    /// Starts a full handshake.
-    pub async fn full_handshake(&mut self) {
-        todo!()
+    /// Starts a full client handshake.
+    pub async fn full_handshake(&mut self) -> Result<(), Error> {
+        let mut payload = vec![HandshakeContentType::ClientHello as u8];
+        payload.append(
+            &mut bincode::serialize(&ClientHello {
+                public_key: RsaPublicKey::from((*self.local_decrypt).as_ref())
+                    .to_public_key_der()
+                    .map_err(|_| Error::UnexceptedError)?
+                    .to_vec(),
+                padding_hf: self.local_decrypt.hash_type() as u8,
+                signature_hf: self.local_signing.hash_type() as u8,
+            })
+            .map_err(|_| Error::UnexceptedError)?,
+        );
+
+        self.io_wrapper
+            .send(ContentType::Handshake, &payload)
+            .await?;
+
+        let (content_type, payload) = self.receive_internal().await?;
+
+        if !matches!(content_type, ContentType::Handshake) || payload.len() <= 2 {
+            return Err(Error::Handshake(HandshakeError::InvalidContentType));
+        }
+
+        if HandshakeContentType::try_from(payload[0])? != HandshakeContentType::ServerHello {
+            return Err(Error::Handshake(HandshakeError::InvalidContentType));
+        }
+
+        let server_hello: ServerHello =
+            bincode::deserialize(&payload[1..]).map_err(|_| Error::InvalidPayload)?;
+
+        // TODO: certificate verification
+
+        let server_public = RsaPublicKey::from_public_key_der(&server_hello.public_key)
+            .map_err(|_| Error::Handshake(HandshakeError::InappropriatePublicKey))?;
+
+        self.peer_encrypt = Some(EncryptFunction::try_new(
+            &HashFunction::try_from(server_hello.padding_hf)?,
+            server_public.clone(),
+        )?);
+        self.peer_verifying = Some(VerifyingFunction::try_new(
+            &HashFunction::try_from(server_hello.signature_hf)?,
+            server_public.clone(),
+        )?);
+
+        Ok(())
     }
 }

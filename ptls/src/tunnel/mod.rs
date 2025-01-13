@@ -4,6 +4,8 @@ mod macros;
 mod encrypted_tunnel;
 mod error;
 mod handshake_subprotocol;
+#[cfg(test)]
+mod tests;
 
 use crate::{crypto::hash_functions::*, io_wrapper::IoWrapper};
 use rsa::RsaPublicKey;
@@ -78,5 +80,10 @@ where
         self.peer_encrypt = Some(EncryptFunction::try_new(signature_hf, public_key.clone())?);
         self.peer_verifying = Some(VerifyingFunction::try_new(padding_hf, public_key)?);
         Ok(())
+    }
+
+    /// Sets the signted public key.
+    pub fn set_signed_public_key(&mut self, signed_public_key: Arc<SignedPublicKey>) {
+        self.signed_public = Some(signed_public_key);
     }
 }
