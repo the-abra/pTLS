@@ -2,11 +2,11 @@
 //! pTLS provides three sub-protocols for categorizing and handling messages.
 //!
 //! Typically, during a pTLS connection, [`ApplicationData`] protocols follow
-//! the [`Handshake`] phase. [`Alert`] messages are sent if an error occurs,
+//! the [`handshake`] phase. [`Alert`] messages are sent if an error occurs,
 //! though this should not happen with properly implemented pTLS in stable
 //! networks.
 //!
-//! [`Handshake`]: sub_protocol::Handshake
+//! [`handshake`]: sub_protocol::handshake
 //! [`ApplicationData`]: sub_protocol::ApplicationData
 //! [`Alert`]: sub_protocol::Alert
 
@@ -19,13 +19,12 @@ pub mod handshake;
 
 pub use alert::Alert;
 pub use application_data::ApplicationData;
-pub use handshake::Handshake;
 
 /// All content types except for `ClientHello` is encrypted.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ContentType {
-    /// Represents a [`Handshake::ClientHello`] or
-    /// [`Handshake::EncryptedClientHello`] message. The first byte of the
+    /// Represents a [`handshake::ClientHello`] or
+    /// [`handshake::EncryptedClientHello`] message. The first byte of the
     /// message contains flags, with 7 reserved bits and 1 bit indicating  
     /// whether the message is encrypted (`is_message_encrypted`).
     ///
@@ -37,7 +36,7 @@ pub enum ContentType {
     /// ..payload
     /// ```
     ClientHello = 0,
-    /// Represents other [`Handshake`] messages not covered by [`ClientHello`]
+    /// Represents other [`handshake`] messages not covered by [`ClientHello`]
     /// variant of this enum. Always encrypted.
     ///
     /// [`ClientHello`]: ContentType::ClientHello
@@ -91,18 +90,5 @@ fn alert_equality() {
     assert_eq!(
         HandshakeError(HandshakeError::InvalidRandom),
         HandshakeError(HandshakeError::InvalidRandom)
-    );
-    assert_eq!(
-        HandshakeError(HandshakeError::InappropriateMessage {
-            expected_types: vec![3],
-            got: 0
-        }),
-        HandshakeError(HandshakeError::InappropriateMessage {
-            expected_types: vec![u8::from(&Handshake::Finished {
-                random: 0,
-                random_signature: vec![]
-            })],
-            got: u8::from(&Handshake::ClientHello { public_key: vec![] })
-        }),
     );
 }

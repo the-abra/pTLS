@@ -11,8 +11,8 @@
 //! are ignored after a successful [`Finished`] or [`EncryptedClientHello`]
 //! phase in the `handshake`.
 //!
-//! [`Finished`]: Handshake::Finished
-//! [`EncryptedClientHello`]: Handshake::EncryptedClientHello
+//! [`Finished`]: handshake::Finished
+//! [`EncryptedClientHello`]: handshake::EncryptedClientHello
 
 use super::{handshake::HandshakeError, ContentType};
 

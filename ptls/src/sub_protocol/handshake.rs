@@ -4,10 +4,15 @@
 //!        Client                                           Server
 //!
 //! Key  ^ ClientHello
-//! Exch v    public_key           ------->
+//! Exch |    public_key
+//!      |    signature_scheme
+//!      v    padding_scheme       ------->
 //!
 //!                                                 [ServerHello]  ^ Key
 //!                                                  public_key    | Exch
+//!                                                  expries_at    |
+//!                                            signature_scheme    |
+//!                                              padding_scheme    |
 //!                                       thrusted_authority_id    |
 //!                                <-------           signature    v
 //!
@@ -44,9 +49,11 @@
 //!        Client                                           Server
 //!
 //! Key  ^ {EncryptedClientHello}
-//! Exch v    public_key
+//! Exch |    public_key
+//!      |    signature_scheme
+//!      v    padding_scheme
 //! Auth ^    random
-//! exch v    random_signature     ------->
+//!      v    random_signature     ------->
 //!
 //!        {ApplicationData}       <------>       [ApplicationData]
 //! ```
@@ -60,57 +67,59 @@
 //!
 //! Typically, the basic handshake is used for reconnecting.
 //!
-//! [`ClientHello`]: Handshake::ClientHello
-//! [`ServerHello`]: Handshake::ServerHello
-//! [`Finished`]: Handshake::Finished
-//! [`EncryptedClientHello`]: Handshake::EncryptedClientHello
+//! [`ClientHello`]: handshake::ClientHello
+//! [`ServerHello`]: handshake::ServerHello
+//! [`Finished`]: handshake::Finished
+//! [`EncryptedClientHello`]: handshake::EncryptedClientHello
 
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
-/// Messages sent during the `handshake` sub-protocol.
+/// When a client first connects to a server, it is required to send the
+/// `ClientHello` or `EncryptedClientHello` as its first pTLS message.
 #[derive(Serialize, Deserialize)]
-pub enum Handshake {
-    /// When a client first connects to a server, it is required to send the
-    /// `ClientHello` or `EncryptedClientHello` as its first pTLS message.
-    ClientHello { public_key: Vec<u8> },
-
-    /// This is an encrypted version of the `ClientHello`. Combines the
-    /// properties of `Finished` and `ClientHello`.
-    EncryptedClientHello {
-        public_key: Vec<u8>,
-        random: u64,
-        random_signature: Vec<u8>,
-    },
-
-    /// The server will send this message in response to a ClientHello message
-    /// to proceed with the handshake.
-    ServerHello {
-        public_key: Vec<u8>,
-        trusted_authority_id: u64,
-        signature: Vec<u8>,
-    },
-
-    /// The `Finished` message concludes the `Handshake` phase. After sending a
-    /// `Finished` message, the peer or the server can start sending
-    /// `ApplicationData`.
-    Finished {
-        /// A random 64-bit integer used to prevent message forgery. The client
-        /// must include this value with `ApplicationData`.
-        random: u64,
-        random_signature: Vec<u8>,
-    },
+pub struct ClientHello {
+    pub public_key: Vec<u8>,
+    pub signature_scheme: u8,
+    pub padding_scheme: u8,
 }
 
-impl<'a> From<&'a Handshake> for u8 {
-    fn from(handshake: &'a Handshake) -> Self {
-        match handshake {
-            Handshake::ClientHello { .. } => 0,
-            Handshake::EncryptedClientHello { .. } => 1,
-            Handshake::ServerHello { .. } => 2,
-            Handshake::Finished { .. } => 3,
-        }
-    }
+/// This is an encrypted version of the `ClientHello`. Combines the
+/// properties of `Finished` and `ClientHello`.
+#[derive(Serialize, Deserialize)]
+pub struct EncryptedClientHello {
+    pub public_key: Vec<u8>,
+    pub signature_scheme: u8,
+    pub padding_scheme: u8,
+    pub random: u64,
+    pub random_signature: Vec<u8>,
+}
+
+/// The server will send this message in response to a ClientHello message
+/// to proceed with the handshake.
+#[derive(Serialize, Deserialize)]
+pub struct ServerHello {
+    pub public_key: Vec<u8>,
+    /// Unix timestamp that indicates public_key's expriation time.
+    pub expries_at: u8,
+    pub signature_scheme: u8,
+    pub padding_scheme: u8,
+    pub trusted_authority_id: u64,
+    /// The signature provided by trusted authority for verifying the
+    /// public_key and its expriation timestamp.
+    pub signature: Vec<u8>,
+}
+
+/// The `Finished` message concludes the `Handshake` phase. After sending a
+/// `Finished` message, the peer or the server can start sending
+/// `ApplicationData`.
+#[derive(Serialize, Deserialize)]
+pub struct Finished {
+    /// A random 64-bit integer used to prevent message forgery. The client
+    /// must include this value with `ApplicationData`.
+    pub random: u64,
+    /// The random should signed by public key of the peer.
+    pub random_signature: Vec<u8>,
 }
 
 /// Errors may occur during the `handshake` sub-protocol.
@@ -129,8 +138,11 @@ pub enum HandshakeError {
     /// The random sent by peer is not valid.
     InvalidRandom,
 
-    /// Received a `handshake`message that is not valid right now.
+    /// Received a `handshake` message that is not valid right now.
     InappropriateMessage { expected_types: Vec<u8>, got: u8 },
+
+    /// Message sent with invalid content type.
+    InvalidContentType,
 }
 
 impl Display for HandshakeError {
@@ -144,8 +156,53 @@ impl Display for HandshakeError {
             Self::InvalidSignature => f.write_str("signature invalid"),
             Self::InvalidRandom => f.write_str("random invalid"),
             Self::InappropriatePublicKey => f.write_str("cannot parse public key"),
+            Self::InvalidContentType => f.write_str("provided content type is not known"),
         }
     }
 }
 
 impl std::error::Error for HandshakeError {}
+
+/// Common handshake payload methods.
+pub trait HandshakePayload {
+    fn content_type() -> HandshakeContentType;
+}
+
+macro_rules! impl_handshake_payload {
+    ($( ($struct:ident, $content_type:expr ) ),*) => {
+        /// Numeric content type ids of the handshake messages.
+        pub enum HandshakeContentType {
+            $(
+                $struct = $content_type
+            ),*
+        }
+
+        impl TryFrom<u8> for HandshakeContentType {
+            type Error = HandshakeError;
+
+            fn try_from(value: u8) -> Result<Self, Self::Error> {
+                match value {
+                    $(
+                        $content_type => Ok(Self::$struct),
+                    )*
+                    _ => Err(HandshakeError::InvalidContentType)
+                }
+            }
+        }
+
+        $(
+            impl HandshakePayload for $struct {
+                fn content_type() -> HandshakeContentType {
+                    HandshakeContentType::$struct
+                }
+            }
+        )*
+    };
+}
+
+impl_handshake_payload!(
+    (ClientHello, 0),
+    (EncryptedClientHello, 1),
+    (ServerHello, 2),
+    (Finished, 3)
+);
