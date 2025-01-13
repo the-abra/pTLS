@@ -1,4 +1,4 @@
-use super::Error;
+use super::CryptoError;
 use rand::rngs::OsRng;
 use rsa::{
     pss::{BlindedSigningKey, Signature, VerifyingKey},
@@ -29,9 +29,9 @@ where
     H: Digest + FixedOutputReset,
 {
     /// Creates a new [`Signing`].
-    pub fn try_new(private_key: RsaPrivateKey) -> Result<Self, Error> {
+    pub fn try_new(private_key: RsaPrivateKey) -> Result<Self, CryptoError> {
         if private_key.n().bits() / 8 <= <H as Digest>::output_size() * 2 + 2 {
-            return Err(Error::HashFunctionOutputTooLarge);
+            return Err(CryptoError::HashFunctionOutputTooLarge);
         }
 
         Ok(Self {
@@ -49,9 +49,9 @@ where
     H: Digest + FixedOutputReset,
 {
     /// Creates a new [`Verifying`].
-    pub fn try_new(public_key: RsaPublicKey) -> Result<Self, Error> {
+    pub fn try_new(public_key: RsaPublicKey) -> Result<Self, CryptoError> {
         if public_key.n().bits() / 8 <= <H as Digest>::output_size() * 2 + 2 {
-            return Err(Error::HashFunctionOutputTooLarge);
+            return Err(CryptoError::HashFunctionOutputTooLarge);
         }
 
         Ok(Self {
@@ -59,7 +59,7 @@ where
         })
     }
 
-    pub fn verify(&self, msg: &[u8], signature: &[u8]) -> Result<(), Error> {
+    pub fn verify(&self, msg: &[u8], signature: &[u8]) -> Result<(), CryptoError> {
         self.verifying_key
             .verify(msg, &Signature::try_from(signature)?)?;
         Ok(())

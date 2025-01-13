@@ -20,40 +20,31 @@ pub mod handshake;
 pub use alert::Alert;
 pub use application_data::ApplicationData;
 
-/// All content types except for `ClientHello` is encrypted.
+/// Content type of the message.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ContentType {
-    /// Represents a [`handshake::ClientHello`] or
-    /// [`handshake::EncryptedClientHello`] message. The first byte of the
-    /// message contains flags, with 7 reserved bits and 1 bit indicating  
-    /// whether the message is encrypted (`is_message_encrypted`).
+    /// The first byte of the message contains content type. Handshake
+    /// sub-protocol has its own contentent types for the udnerlying data.
     ///
     /// ```text
-    /// first byte:
-    ///     0 is_encrypted
-    ///   1-7 reserved
+    ///  0: content_type
     ///
-    /// ..payload
+    ///  ..payload
     /// ```
-    ClientHello = 0,
-    /// Represents other [`handshake`] messages not covered by [`ClientHello`]
-    /// variant of this enum. Always encrypted.
-    ///
-    /// [`ClientHello`]: ContentType::ClientHello
-    Handshake = 1,
+    Handshake = 0,
     /// Application-specific data that is always encrypted.
-    ApplicationData = 2,
+    ApplicationData = 1,
     /// First byte of this variant contains flags.
     ///
     /// ```text
-    /// first byte:
+    ///  0:
     ///     0 is_encrypted
     ///     1 is_fatal
     ///   2-7 reserved
     ///
     ///  ..payload
     /// ```
-    Alert = 3,
+    Alert = 2,
 }
 
 impl TryFrom<u8> for ContentType {
@@ -61,10 +52,9 @@ impl TryFrom<u8> for ContentType {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
-            0 => Ok(Self::ClientHello),
-            1 => Ok(Self::Handshake),
-            2 => Ok(Self::ApplicationData),
-            3 => Ok(Self::Alert),
+            0 => Ok(Self::Handshake),
+            1 => Ok(Self::ApplicationData),
+            2 => Ok(Self::Alert),
             _ => Err(()),
         }
     }

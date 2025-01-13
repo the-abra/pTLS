@@ -138,9 +138,6 @@ pub enum HandshakeError {
     /// The random sent by peer is not valid.
     InvalidRandom,
 
-    /// Received a `handshake` message that is not valid right now.
-    InappropriateMessage { expected_types: Vec<u8>, got: u8 },
-
     /// Message sent with invalid content type.
     InvalidContentType,
 }
@@ -148,10 +145,6 @@ pub enum HandshakeError {
 impl Display for HandshakeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::InappropriateMessage {
-                expected_types,
-                got,
-            } => write!(f, "expected {expected_types:?}, got {got}"),
             Self::UnknownCa => f.write_str("unknown ca"),
             Self::InvalidSignature => f.write_str("signature invalid"),
             Self::InvalidRandom => f.write_str("random invalid"),

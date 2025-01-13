@@ -3,13 +3,13 @@ use std::{error::Error as StdError, fmt::Display};
 
 /// Crypto error types.
 #[derive(Debug)]
-pub enum Error {
+pub enum CryptoError {
     HashFunctionOutputTooLarge,
     Rsa(RsaError),
     Signature(SignatureError),
 }
 
-impl Display for Error {
+impl Display for CryptoError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::HashFunctionOutputTooLarge => f.write_str(
@@ -21,6 +21,6 @@ impl Display for Error {
     }
 }
 
-impl StdError for Error {}
+impl StdError for CryptoError {}
 
-error_impl_from!(Error; Rsa, Signature);
+error_impl_from!(CryptoError; Rsa, Signature);

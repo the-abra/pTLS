@@ -1,4 +1,4 @@
-use super::Error;
+use super::error::CryptoError;
 use rand::rngs::OsRng;
 use rsa::{
     sha2::digest::{Digest, DynDigest},
@@ -28,14 +28,14 @@ where
     H: 'static + Digest + DynDigest + Send + Sync,
 {
     /// Creates a new [`Encrypt`].
-    pub fn try_new(public_key: RsaPublicKey) -> Result<Self, Error> {
+    pub fn try_new(public_key: RsaPublicKey) -> Result<Self, CryptoError> {
         // OAEP padding adds an overhead of 2 * hash_output_size + 2 bytes.
         let overhead = <H as Digest>::output_size() * 2 + 2;
         // RSA encryption is limited to the key size in bytes.
         let block_size = public_key.n().bits() / 8;
         // It is impossible to encrypt when OAEP overhead exceeds RSA size.
         if overhead >= block_size {
-            return Err(Error::HashFunctionOutputTooLarge);
+            return Err(CryptoError::HashFunctionOutputTooLarge);
         }
 
         Ok(Self {
@@ -47,7 +47,7 @@ where
     }
 
     /// Encrypts the payload.
-    pub fn encrypt(&self, payload: &[u8]) -> Result<Vec<u8>, Error> {
+    pub fn encrypt(&self, payload: &[u8]) -> Result<Vec<u8>, CryptoError> {
         let block_count = payload.len().div_ceil(self.available_block_size);
         let mut encrypted = Vec::with_capacity(block_count * self.block_size);
 
@@ -68,11 +68,11 @@ where
     H: 'static + Digest + DynDigest + Send + Sync,
 {
     /// Creates a new [`Decrypt`].
-    pub fn try_new(private_key: RsaPrivateKey) -> Result<Self, Error> {
+    pub fn try_new(private_key: RsaPrivateKey) -> Result<Self, CryptoError> {
         let overhead = <H as Digest>::output_size() * 2 + 2;
         let block_size = private_key.n().bits() / 8;
         if overhead >= block_size {
-            return Err(Error::HashFunctionOutputTooLarge);
+            return Err(CryptoError::HashFunctionOutputTooLarge);
         }
 
         Ok(Self {
@@ -84,7 +84,7 @@ where
     }
 
     /// Decrypts the payload and overwrites the original data.
-    pub fn decrypt_owned(&self, payload: &mut Vec<u8>) -> Result<(), Error> {
+    pub fn decrypt_owned(&self, payload: &mut Vec<u8>) -> Result<(), CryptoError> {
         let block_count = payload.len().div_ceil(self.block_size);
 
         let mut total_len = 0;

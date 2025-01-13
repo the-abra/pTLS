@@ -6,4 +6,4 @@ pub mod encryption;
 /// Signing and signature verification using PSS.
 pub mod signature;
 
-pub use error::Error;
+pub use error::CryptoError;
